@@ -1,0 +1,71 @@
+day one:
+1.初看disruptor,给人的印象就是ringBuffer是核心
+生产者向RingBuffer中写入数据，消费者从RingBuffer中取出数据
+
+2.RingBuffer是一个收尾相接的容器，RingBuffer中有一个序号，这个序号
+指向数组中的下一个可用元素
+
+3.扔芝麻和捡芝麻的故事
+3.1生产者往里面扔芝麻，消费者取芝麻
+3.2如果消费者捡芝麻的的速度比较快，那么消费者就要根据策略，停下来等待生产者
+3.3数组的长度是有上限的，生产者到末尾的时候会再从数组的开始位置继续，这个时候可能会追上
+消费者，消费者还没从那个地方捡走芝麻，那么生产者需要等待消费者捡走芝麻。
+
+4.要找到数组中当前序号指向的元素，可以它通过mod操作
+  12(需要放的数的序号) % 10(环的大小) = 2-->那么就在第二位咯
+
+5.如果RingBuffer是2的n次方，会更有利于基于二进制的计算机进行计算
+
+6.RingBuffer:基于数组的缓存实现，也是创建sequencer和waitSrategy的入口
+
+7.disruptor:持有RingBuffer，消费者线程池Executor
+
+8.disruptor核心-sequence:通过顺序递增的序号来编号，管理进行交换的数据
+8.1对数据的处理过程总是沿着需要进行逐个递增的，生产者每扔一个数据，序号就递增一个
+8.2一个sequence用于跟踪标识某个特定的事件处理者-->RingBuffer、Producer、Consumer的处理进度
+8.3sequence可以看成一个AtomicLong用于标识进度,另外可以防止不同cpu缓存的伪共享的问题
+
+9.Sequencer-是一个对象，包括了sequence的序号
+9.1Sequencer是Disruptor的真正核心
+9.2此接口有两个实现类
+	SingleProducerSequencer
+	MultiProducerSequencer
+主要实现生产者和消费者之间快速，准确的传递数据的并发算法
+
+10.Sequence Barrirer
+10.1用于保持生产者和消费者之间的序号的平衡关系，等待,睡眠和唤醒等
+10.2Sequence Barrier还定义了Consumer是否还有可处理的事件的逻辑
+
+11.WaitStrategy
+11.1决定消费者如何等待生产者如何将Event置入Disruptor
+11.2BlockingWaitStrategy 
+	这是最低效的策略，但对cpu的消耗最小，并且可以在不同的部署条件中提供一致的性能表现
+11.3SleepingWaitStrategy
+	和第一种相识的性能表现，但其对于生产者的性能影响较小
+11.4LiteBlockingWaitStrategy
+	采用原子锁的策略，性能应该比BlockingWait要强，但这种策略被认为是一种测试策略，一般不使用
+11.5YieldingWaitStrategy
+	性能是最好的的之一，适合于低延迟的系统，在要求极高性能且时间处理线程数小于cpu逻辑核心数量的场景中
+	推荐使用此策略，例如cpu开启超线程的特性
+	在这种模式下，线程如果获得不到sequence，就不断的调用yield方法，线程让步，直到拿到新的sequence
+11.6BusySpinWaitStrategy
+	性能是最好的之一，也是一种无锁的策略，采用spin-wait loop自旋方式让线程空转，在要求极高性能且时间处理
+	线程数小于cpu逻辑核心数量的场景中推荐使用此策略
+	这种策略和YieldingWaitStrategy的区别在于其占用的cpu资源更难以被释放给其他线程
+	所以大多数情况还是使用YieldingWaitStrategy
+	
+说明：YiedingWaitStrategy和BusySpinWaitStrategy非常具有启发性，当我们在构建一些其他的程序或框架时，可以通过
+判断是否获得某个值或者资源来决定线程是否空转，而不是盲目的通过加锁的方式。
+	
+12.event-->从生产者到消费者过程中所处理的数据单元
+
+13.EventProcessor-->主要的事件循环，处理Disruptor中的Event，同时拥有消费者的Sequence
+13.1它有一个实现类是BatchEventProcessor,包含了event Loop的有效实现，并且将回调到一个
+EventHandler接口的实例对象
+	
+14.EventHandler-->由用户实现并且代表了Disruptor中的一个消费者的接口
+	也就是我们的消费者逻辑都需要写在这里
+
+15.WorkProcessor-->确保每一个sequence只被一个processor（线程）消费，在同一个Workpool中处理多个WorkProcessor
+	不会消费同样的sequence-->每一个消费者都会有一个自己的sequence噢
+	
