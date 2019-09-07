@@ -1,5 +1,5 @@
 day one:
-1.初看disruptor,给人的印象就是ringBuffer是核心
+1.初看disruptor,给人的印象就是RingBuffer是核心
 生产者向RingBuffer中写入数据，消费者从RingBuffer中取出数据
 
 2.RingBuffer是一个收尾相接的容器，RingBuffer中有一个序号，这个序号
