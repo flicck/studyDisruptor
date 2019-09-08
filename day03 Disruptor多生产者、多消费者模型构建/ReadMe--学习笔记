@@ -1,0 +1,20 @@
+day three:
+1.Disruptor多生产者多消费者模型构建
+1.1依赖Disruptor配置实现多生产者
+ProducerTye-->指定为multi
+1.2依赖WorkerPool实现多消费者
+workerPool有四个参数 RingBuffer,SequenceBarrier,ExceptionHandler,WorkHandler(可以理解为之前的EventHandler)
+
+2.SequenceBarrier
+2.1每一个消费者都有自己的SequenceBarrier,并且有自己独立的Sequence序号
+     而多个生产者只有一个生产者Sequence
+
+3.生产者需要知道消费者组中的最低进度（最低sequence）,当生产者sequence追上了消费者的
+    最低sequence，这时生产者会处于阻塞状态，等待消费者继续消费。具体见图1
+    那么生产者如何知道消费者组中的最低的进度呢，Disruptor的策略是把消费者组中所有的sequnce
+    传入RingBuffer，进而让生产者知道。
+    
+4.多消费者使用的是WorkProcessor而不是BatchEventProcessor-->可以从WorkPool的构造方法和start方法点进去
+  WorkProcessor是EventProcessor的另外一种实现，其底层是线程池的任务提交方式，故10个消费者无需
+    创建10个线程，少于10也是可以的。但是这只是保证其不报错，如果线程数少于消费者数量，会导致部分消费者没有
+    消费任何产品。具体可以去代码里测试。
